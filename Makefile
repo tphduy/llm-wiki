@@ -2,6 +2,8 @@
 
 PYTHON ?= python3
 export PYTHONDONTWRITEBYTECODE := 1
+# Hermetic tests must select their own temporary vaults, never the caller’s.
+unexport CLAUDE_OBSIDIAN_VAULT CLAUDE_OBSIDIAN_SESSION_CONTEXT CLAUDE_OBSIDIAN_SESSION_CONTEXT_VAULT
 
 .PHONY: help test test-python test-shell test-contracts test-package validate \
 	setup-dragonscale setup-retrieve setup-mode clean-test-state
