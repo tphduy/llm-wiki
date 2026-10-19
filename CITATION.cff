@@ -1,17 +1,19 @@
 cff-version: 1.2.0
-title: claude-obsidian
+title: llm-wiki
 message: >-
   If you use this software, please cite it using the metadata from this file.
 type: software
 authors:
+  - alias: tphduy
   - alias: AgriciDaniel
-repository-code: 'https://github.com/AgriciDaniel/claude-obsidian'
-url: 'https://github.com/AgriciDaniel/claude-obsidian'
+repository-code: 'https://github.com/tphduy/llm-wiki'
+url: 'https://github.com/tphduy/llm-wiki'
 license: MIT
-version: 2.2.0
-date-released: '2026-09-10'
+version: 2.3.0
+date-released: '2026-10-19'
 keywords:
   - obsidian
+  - codex
   - claude-code
   - knowledge-management
   - second-brain

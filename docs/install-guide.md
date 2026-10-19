@@ -1,8 +1,8 @@
-# Install claude-obsidian
+# Install llm-wiki
 
-claude-obsidian has two independent parts:
+llm-wiki has two independent parts:
 
-1. the product package—skills, portable core, Claude adapter, and templates;
+1. the product package—skills, portable core, host adapters, and templates;
 2. a user-owned Obsidian vault containing mutable knowledge.
 
 Do not use an installed plugin cache as the vault. A source clone is suitable
@@ -11,7 +11,7 @@ for development, but a normal user vault should be a separate directory.
 ## Requirements
 
 - Python 3.11 or newer
-- an Agent Skills compatible host, or Claude Code for the plugin adapter
+- an Agent Skills compatible host, Codex, or Claude Code for plugin installation
 - Obsidian when you want its visual editor
 - Bash for installer and optional legacy-extension scripts
 - Git only for source development, release builds, or explicit checkpoints
@@ -23,23 +23,89 @@ for development, but a normal user vault should be a separate directory.
 Add the artifact-clean public catalog and install the namespaced plugin:
 
 ```bash
-claude plugin marketplace add AgriciDaniel/claude-obsidian
-claude plugin install claude-obsidian@agricidaniel-claude-obsidian
+claude plugin marketplace add tphduy/llm-wiki
+claude plugin install llm-wiki@tphduy-llm-wiki
 claude plugin list
 ```
 
-The private development tree deliberately has no
-`.claude-plugin/marketplace.json`; it can contain contributor-vault state and
-must not be added as a marketplace. The deterministic release builder injects
-that manifest only into its audited output. The public default branch must be
-promoted from the extracted audited artifact before these marketplace commands
-are advertised for a new version.
+Clean public checkouts contain both reviewed marketplace catalogs. A contributor
+checkout containing root vault state must omit them. Release builds inject the
+catalogs from reviewed templates and reject drift or contributor data.
 
-Invoke skills as `/claude-obsidian:wiki`,
-`/claude-obsidian:wiki-ingest`, and `/claude-obsidian:save`.
+Invoke skills as `/llm-wiki:wiki`,
+`/llm-wiki:wiki-ingest`, and `/llm-wiki:save`.
 
 The plugin cache contains read-only product assets. Run Claude from the user
 vault, set `CLAUDE_OBSIDIAN_VAULT`, or pass `--vault` to portable commands.
+
+## Codex marketplace
+
+Add this fork’s clean marketplace and install the plugin:
+
+```bash
+codex plugin marketplace add tphduy/llm-wiki
+codex plugin add llm-wiki@tphduy-llm-wiki
+codex plugin list --json
+```
+
+For local testing, pass an absolute clean checkout or extracted audited artifact
+to `codex plugin marketplace add` instead of the GitHub repository. In the
+ChatGPT desktop app, restart, open the Plugins Directory, select **LLM Wiki**,
+and install the plugin. Client availability varies; local CLI verification uses
+Codex 0.163.0. Public OpenAI directory submission is a separate workflow.
+
+Start Codex from your user vault. Select the packaged `wiki` skill in the skill
+picker, or ask “Use the wiki skill in llm-wiki to inspect this vault.” The plugin
+contains all 15 canonical skills, namespaced as `llm-wiki:wiki`,
+`llm-wiki:save`, and so on. Helpers resolve from the installed package;
+mutable state remains in your selected vault.
+
+The release uses `.codex-plugin/plugin.json` for Codex compatibility and
+`.claude-plugin/plugin.json` for Claude, with `config/plugin.json` as the shared
+metadata authority. Codex 0.163 discovers portable skills but ignores hooks in
+a portable root manifest, so this package intentionally has no root
+`plugin.json`. Both adapters use the same skill and Python directories.
+
+Codex hooks require review and trust. Open `/hooks` in the CLI, inspect the
+bundled SessionStart and Stop commands, and trust them only after review.
+Installing the plugin does not grant hook trust. SessionStart stays silent
+unless you explicitly set `CLAUDE_OBSIDIAN_SESSION_CONTEXT=1` before launching
+Codex. An external workspace-configured vault also needs the exact
+`CLAUDE_OBSIDIAN_SESSION_CONTEXT_VAULT` path. These legacy environment names are
+shared with Claude. Stop warnings are aggregate and advisory; neither hook
+writes notes or captures transcripts. See [hook behavior](../hooks/README.md).
+
+Refresh and reinstall to update the cached package:
+
+```bash
+codex plugin marketplace upgrade tphduy-llm-wiki
+codex plugin add llm-wiki@tphduy-llm-wiki
+```
+
+To remove only the plugin and its marketplace:
+
+```bash
+codex plugin remove llm-wiki@tphduy-llm-wiki
+codex plugin marketplace remove tphduy-llm-wiki
+```
+
+Vault files remain in the separate user directory. Plugin hooks target local
+Codex execution; macOS, Linux, and WSL use `python3` on PATH. Native Windows
+retains the existing read-only/dry-run limitations.
+
+### Switching from standalone skills or the upstream plugin
+
+Choose one discovery method per host. Before installing the plugin, inspect
+existing `~/.agents/skills/<name>` links. Remove only links you own that point
+to this product’s `skills/<name>` directories; preserve unrelated files and
+links. No installer removes them automatically. To return to standalone mode,
+remove the plugin, then preview and apply `setup-multi-agent.sh --host codex`.
+
+The upstream `claude-obsidian` plugin and this fork have different identities.
+Uninstall the old plugin through its host before enabling `llm-wiki` to avoid
+duplicate skills and hooks. Existing `.claude-obsidian.json` vault configuration,
+`CLAUDE_OBSIDIAN_*` variables, CLI paths, and transaction formats stay supported.
+No vault migration is required.
 
 ## Local Claude plugin development
 
@@ -145,7 +211,7 @@ python3 scripts/claude-obsidian.py adopt <existing-vault> \
 It preserves existing notes and Obsidian JSON. `--force` is intentionally
 separate and should be used only after inspecting replacement targets.
 
-For older claude-obsidian layouts, add provenance ledgers and workspace config
+For existing claude-obsidian vault layouts, add provenance ledgers and workspace config
 with an additive migration:
 
 ```bash
@@ -251,8 +317,8 @@ from its vault-local pending record.
 Remove the host integration, not the vault:
 
 ```bash
-claude plugin uninstall claude-obsidian@agricidaniel-claude-obsidian
-claude plugin marketplace remove agricidaniel-claude-obsidian
+claude plugin uninstall llm-wiki@tphduy-llm-wiki
+claude plugin marketplace remove tphduy-llm-wiki
 ```
 
 For portable hosts, remove only the per-skill links that the installer reported.

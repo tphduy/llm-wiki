@@ -12,7 +12,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_LAUNCHERS = tuple(sorted((ROOT / "scripts").glob("*.py")))
 SETUP_SCRIPT_NAMES = frozenset(
@@ -34,6 +33,7 @@ SHELL_LAUNCHERS = tuple(
 )
 PRODUCT_DIRS = (
     ".claude-plugin",
+    ".codex-plugin",
     "agents",
     "claude_obsidian",
     "config",

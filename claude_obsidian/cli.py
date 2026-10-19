@@ -29,7 +29,7 @@ from .checkpoint import checkpoint_operation
 from .contracts import evaluate_capabilities, validate_contracts
 from .extensions import dragonscale_bundle
 from .gates import evaluate_release_gates
-from .hook_adapter import emit_session_start, emit_stop_status
+from .hook_adapter import emit_codex_hook, emit_session_start, emit_stop_status
 from .ledgers import LedgerValidationError, migration_bundle, strict_json_loads
 from .lint_engine import lint_vault, render_markdown
 from .mode_config import validate_mode_folders
@@ -53,7 +53,6 @@ from .transaction import (
     sha256_bytes,
 )
 from .vault_ops import VaultOperationError, build_vault_bundle, scan_vault
-
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 
@@ -209,10 +208,14 @@ def command_transaction_inspect(args: argparse.Namespace) -> int:
 
 
 def command_hook_session_start(args: argparse.Namespace) -> int:
+    if args.host == "codex":
+        return emit_codex_hook("SessionStart", plugin_root=PLUGIN_ROOT)
     return emit_session_start(plugin_root=PLUGIN_ROOT)
 
 
 def command_hook_stop(args: argparse.Namespace) -> int:
+    if args.host == "codex":
+        return emit_codex_hook("Stop", plugin_root=PLUGIN_ROOT)
     return emit_stop_status(plugin_root=PLUGIN_ROOT)
 
 
@@ -975,6 +978,8 @@ def build_parser() -> argparse.ArgumentParser:
     session_start.set_defaults(handler=command_hook_session_start)
     stop = hook_commands.add_parser("stop")
     stop.set_defaults(handler=command_hook_stop)
+    for adapter in (session_start, stop):
+        adapter.add_argument("--host", choices=("claude", "codex"), default="claude")
 
     lint = subcommands.add_parser(
         "lint", help="Deterministically inspect an Obsidian vault"

@@ -1,22 +1,22 @@
 {
-  "description": "Audited public distribution channel for claude-obsidian",
-  "name": "agricidaniel-claude-obsidian",
+  "name": "tphduy-llm-wiki",
+  "description": "Audited public distribution channel for llm-wiki",
   "owner": {
-    "name": "AgriciDaniel"
+    "name": "tphduy"
   },
+  "version": "2.3.0",
   "plugins": [
     {
+      "name": "llm-wiki",
+      "description": "Local-first Agent Skills package for source-cited Obsidian knowledge bases, with Codex and Claude Code adapters. Includes explicit vault setup, recoverable transactions, provenance, lint, and retrieval. User vaults stay outside the plugin cache; network and destructive actions require explicit consent.",
       "author": {
-        "name": "AgriciDaniel",
-        "url": "https://github.com/AgriciDaniel"
+        "name": "tphduy",
+        "url": "https://github.com/tphduy"
       },
-      "description": "Local-first Agent Skills package and Claude Code plugin for source-cited Obsidian knowledge bases. Includes recoverable transactions, deterministic lint and retrieval, provenance ledgers, explicit vault adoption, offline-first capture foundations, and methodology modes.",
-      "homepage": "https://github.com/AgriciDaniel/claude-obsidian",
+      "homepage": "https://github.com/tphduy/llm-wiki",
+      "repository": "https://github.com/tphduy/llm-wiki",
       "license": "MIT",
-      "name": "claude-obsidian",
-      "repository": "https://github.com/AgriciDaniel/claude-obsidian",
       "source": "./"
     }
-  ],
-  "version": "2.2.0"
+  ]
 }

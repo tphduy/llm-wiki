@@ -1,4 +1,4 @@
-"""Thin Claude Code lifecycle adapter for the portable core."""
+"""Read-only lifecycle adapters for Claude Code and Codex."""
 
 from __future__ import annotations
 
@@ -22,11 +22,11 @@ from .paths import (
 )
 from .transaction import MAX_TRANSACTION_RUNTIME_JSON_BYTES
 
-
 MAX_CONTEXT_BYTES = 32 * 1024
 MAX_STATUS_BYTES = 4 * 1024
 MAX_STATUS_ITEMS = 8
 MAX_TRANSACTION_SCAN = 256
+MAX_HOOK_INPUT_BYTES = 64 * 1024
 OPEN_TAG = '<claude-obsidian-context trust="local-data" instructions="never">'
 CLOSE_TAG = "</claude-obsidian-context>"
 _SAFE_OPERATION_ID = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
@@ -320,9 +320,7 @@ def stop_status(
     return _bounded_status(warnings, recommend_recover=recommend_recover)
 
 
-def _bounded_status(
-    warnings: list[str], *, recommend_recover: bool = False
-) -> str:
+def _bounded_status(warnings: list[str], *, recommend_recover: bool = False) -> str:
     selected = warnings[:MAX_STATUS_ITEMS]
     if len(warnings) > len(selected):
         selected.append(f"{len(warnings) - len(selected)} additional warnings omitted")
@@ -363,4 +361,59 @@ def emit_stop_status(
     status = stop_status(start=start, environ=environ, plugin_root=plugin_root)
     if status:
         stream.write(json.dumps({"systemMessage": status}, ensure_ascii=False) + "\n")
+    return 0
+
+
+def emit_codex_hook(
+    event: str,
+    *,
+    input_stream: TextIO | None = None,
+    stream: TextIO | None = None,
+    environ: Mapping[str, str] | None = None,
+    plugin_root: Path | str | None = None,
+) -> int:
+    """Normalize Codex's bounded event input before consulting a user vault.
+
+    Only cwd and the event name are consumed. Transcripts and message content
+    are never read, and malformed input cannot fall back to another project.
+    """
+
+    input_stream = sys.stdin if input_stream is None else input_stream
+    stream = sys.stdout if stream is None else stream
+    try:
+        raw = input_stream.read(MAX_HOOK_INPUT_BYTES + 1)
+        if len(raw.encode("utf-8")) > MAX_HOOK_INPUT_BYTES:
+            return 0
+        payload = strict_json_loads(raw)
+        if not isinstance(payload, dict) or payload.get("hook_event_name") != event:
+            return 0
+        cwd = payload.get("cwd")
+        if not isinstance(cwd, str) or not cwd or not Path(cwd).is_absolute():
+            return 0
+        if "\x00" in cwd or not Path(cwd).is_dir():
+            return 0
+    except (OSError, ValueError, UnicodeError, RecursionError):
+        return 0
+
+    if event == "SessionStart":
+        context = session_start_context(
+            start=cwd, environ=environ, plugin_root=plugin_root
+        )
+        output = (
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": event,
+                    "additionalContext": context,
+                }
+            }
+            if context
+            else None
+        )
+    elif event == "Stop":
+        status = stop_status(start=cwd, environ=environ, plugin_root=plugin_root)
+        output = {"systemMessage": status} if status else None
+    else:
+        return 0
+    if output is not None:
+        stream.write(json.dumps(output, ensure_ascii=False) + "\n")
     return 0

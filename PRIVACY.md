@@ -1,6 +1,6 @@
 # Privacy
 
-claude-obsidian is local-first and has no telemetry or analytics. The portable
+llm-wiki is local-first and has no telemetry or analytics. The portable
 core stores vault content on the selected filesystem and does not make network
 requests. This does not mean every host is offline: the AI coding agent, an
 invoked web tool, or a configured external adapter may send selected content to

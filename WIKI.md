@@ -1,4 +1,4 @@
-# claude-obsidian vault schema
+# llm-wiki vault schema
 
 This is the compact human-readable schema for a user vault. Operational details
 live in the skills and executable contracts. Product code and user-vault data

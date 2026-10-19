@@ -18,7 +18,6 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
-
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -29,7 +28,6 @@ from claude_obsidian.release import (
     audit_artifact,
     build_public_artifact,
 )
-
 
 EPOCH = 1_700_000_000
 FIXTURE = ROOT / "tests" / "fixtures" / "release" / "public" / "README.md"
@@ -86,7 +84,10 @@ class CanonicalReleasePolicyTests(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            {".claude-plugin/marketplace.json": "config/public-marketplace.json"},
+            {
+                ".claude-plugin/marketplace.json": "config/public-marketplace.json",
+                ".agents/plugins/marketplace.json": "config/public-codex-marketplace.json",
+            },
             config["archive_overlays"],
         )
 
@@ -267,13 +268,29 @@ class BuildTests(ReleaseRepo):
     def test_public_marketplace_is_injected_only_into_the_audited_artifact(
         self,
     ) -> None:
-        plugin = {"name": "sample-plugin", "version": "1.0.0"}
+        plugin = json.loads((ROOT / "config/plugin.json").read_text())
+        plugin.update(name="sample-plugin", version="1.0.0")
         marketplace = {
+            "name": "sample-marketplace",
             "plugins": [{"name": "sample-plugin", "source": "./"}],
             "version": "1.0.0",
         }
+        codex = json.loads((ROOT / "config/public-codex-marketplace.json").read_text())
+        codex["name"] = "sample-marketplace"
+        codex["plugins"][0]["name"] = "sample-plugin"
+        claude = {
+            key: value
+            for key, value in plugin.items()
+            if key not in {"$schema", "extensions"}
+        }
         required = {
-            ".claude-plugin/plugin.json": json.dumps(plugin).encode(),
+            "config/plugin.json": json.dumps(plugin).encode(),
+            ".codex-plugin/plugin.json": json.dumps(
+                {**claude, **plugin["extensions"]["com.openai"], "skills": "./skills/"}
+            ).encode(),
+            ".claude-plugin/plugin.json": json.dumps(claude).encode(),
+            "config/public-codex-marketplace.json": json.dumps(codex).encode(),
+            "hooks/codex.json": b'{"hooks":{}}\n',
             "claude_obsidian/__init__.py": b"\n",
             "config/capabilities.json": b"{}\n",
             "config/public-marketplace.json": json.dumps(marketplace).encode(),
@@ -287,12 +304,14 @@ class BuildTests(ReleaseRepo):
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
         self.config["archive_overlays"] = {
-            ".claude-plugin/marketplace.json": "config/public-marketplace.json"
+            ".claude-plugin/marketplace.json": "config/public-marketplace.json",
+            ".agents/plugins/marketplace.json": "config/public-codex-marketplace.json",
         }
         self.config["include_roots"] = sorted(
             set(self.config["include_roots"])
             | {
                 ".claude-plugin",
+                ".codex-plugin",
                 "claude_obsidian",
                 "hooks",
                 "scripts",
@@ -311,9 +330,16 @@ class BuildTests(ReleaseRepo):
                 archive.read("config/public-marketplace.json"),
                 archive.read(".claude-plugin/marketplace.json"),
             )
+            self.assertEqual(
+                archive.read("config/public-codex-marketplace.json"),
+                archive.read(".agents/plugins/marketplace.json"),
+            )
             manifest = json.loads(archive.read("RELEASE_MANIFEST.json"))
             self.assertEqual(
-                {".claude-plugin/marketplace.json": "config/public-marketplace.json"},
+                {
+                    ".claude-plugin/marketplace.json": "config/public-marketplace.json",
+                    ".agents/plugins/marketplace.json": "config/public-codex-marketplace.json",
+                },
                 manifest["policy"]["archive_overlays"],
             )
 
@@ -573,13 +599,9 @@ class BuildTests(ReleaseRepo):
 
 class CanonicalPolicyTests(unittest.TestCase):
     def test_release_version_and_date_surfaces_are_coordinated(self) -> None:
-        plugin = json.loads(
-            (ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
-        )
+        plugin = json.loads((ROOT / "config/plugin.json").read_text(encoding="utf-8"))
         marketplace = json.loads(
-            (ROOT / "config" / "public-marketplace.json").read_text(
-                encoding="utf-8"
-            )
+            (ROOT / "config" / "public-marketplace.json").read_text(encoding="utf-8")
         )
         package_source = (ROOT / "claude_obsidian" / "__init__.py").read_text(
             encoding="utf-8"

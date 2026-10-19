@@ -2,10 +2,11 @@
   "approved_private_url_disclosures": [
     "ATTRIBUTION.md"
   ],
+  "archive_format": "zip",
   "archive_overlays": {
+    ".agents/plugins/marketplace.json": "config/public-codex-marketplace.json",
     ".claude-plugin/marketplace.json": "config/public-marketplace.json"
   },
-  "archive_format": "zip",
   "compression": "stored",
   "exclude_globs": [
     "**/*.pyc",
@@ -29,6 +30,7 @@
     "wiki/meta/**"
   ],
   "include_files": [
+    ".agents/plugins/marketplace.json",
     ".gitattributes",
     ".gitignore",
     "AGENTS.md",
@@ -55,6 +57,7 @@
   ],
   "include_roots": [
     ".claude-plugin",
+    ".codex-plugin",
     ".cursor",
     ".windsurf",
     "agents",

@@ -1,9 +1,12 @@
-# claude-obsidian: Agent Instructions
+# llm-wiki: Agent Instructions
 
-claude-obsidian is a local-first Agent Skills package for building source-cited,
-compounding Obsidian knowledge bases. It also ships a Claude Code plugin adapter.
+llm-wiki is a local-first Agent Skills package for building source-cited,
+compounding Obsidian knowledge bases. It ships Codex and Claude Code plugin adapters.
 The portable workflow is implemented in `skills/` and the standard-library
 `claude_obsidian/` core; host hooks never define knowledge behavior.
+`config/plugin.json` owns shared metadata; host manifests must match it. Keep
+the portable template out of the root: Codex 0.163 ignores plugin hooks when
+a portable root manifest shadows `.codex-plugin/plugin.json`.
 
 ## Product and vault boundaries
 
@@ -12,13 +15,12 @@ The portable workflow is implemented in `skills/` and the standard-library
   and `.raw/`. Mutable state always belongs there.
 - `templates/vault/` is the distributable seed. Root `wiki/`, `.raw/`, and
   `.vault-meta/` are contributor state and are excluded from public artifacts.
-- Never derive a user vault from the plugin cache or `${CLAUDE_PLUGIN_ROOT}`.
-- A checkout containing contributor-vault state has no marketplace catalog.
-  `config/public-marketplace.json` is injected as
-  `.claude-plugin/marketplace.json` only inside the audited release artifact.
-  An extracted distribution-clean artifact may retain that exact manifest and
-  rebuild idempotently. A public default branch must be populated from the clean
-  artifact, never by pushing contributor-vault state.
+- Never derive a user vault from the plugin cache or `${CLAUDE_PLUGIN_ROOT}` / `${PLUGIN_ROOT}`.
+- Clean public checkouts may retain the Claude and Codex catalogs exactly as
+  generated from their reviewed `config/public*-marketplace.json` templates.
+  Contributor checkouts containing root `wiki/`, `.raw/`, or `.vault-meta/`
+  must omit both catalogs. Release builds inject and audit both catalogs;
+  public branches contain only distribution-clean product files.
 
 Resolve a vault in this order: explicit `--vault`,
 `CLAUDE_OBSIDIAN_VAULT`, nearest `.claude-obsidian.json`, then an unambiguous
@@ -39,7 +41,7 @@ vault at or above the current directory. Fail closed when no vault is selected.
 All 15 skills live at `skills/<name>/SKILL.md`. They use the portable Agent
 Skills frontmatter subset: exactly `name` and `description`. Do not add mirrored
 files under `commands/`; Claude invokes plugin skills by namespaced names such
-as `/claude-obsidian:wiki`.
+as `/llm-wiki:wiki`.
 
 Core workflows are `wiki`, `save`, `wiki-ingest`, `wiki-query`, and
 `wiki-lint`. Extensions are `autoresearch`, `canvas`, `defuddle`, `wiki-fold`,
@@ -84,7 +86,7 @@ Public artifacts are built locally with `release build` and audited without
 publishing. No agent may push, tag, open or mutate issues, or publish a release
 without explicit owner approval.
 
-Claude SessionStart context injection is disabled by default. Treat
+SessionStart context injection on both hosts is disabled by default. Treat
 `CLAUDE_OBSIDIAN_SESSION_CONTEXT=1` as explicit user consent to place bounded
 `wiki/hot.md` data in the model context; never set it automatically. A
 workspace-configured vault outside the project also requires an exact
@@ -92,6 +94,7 @@ workspace-configured vault outside the project also requires an exact
 
 ## Reference
 
-- Public canonical repository: https://github.com/AgriciDaniel/claude-obsidian
+- Fork repository: https://github.com/tphduy/llm-wiki
+- Upstream: https://github.com/AgriciDaniel/claude-obsidian
 - LLM Wiki pattern: https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f
 - Obsidian primitives: https://github.com/kepano/obsidian-skills
