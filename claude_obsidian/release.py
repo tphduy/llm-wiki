@@ -27,14 +27,13 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping, Sequence
 
 from .json_utils import parse_finite_json_float
+from .plugin_metadata import CATALOGS, validate_metadata
 
 SCHEMA_VERSION = 1
 CONFIG_PATH = PurePosixPath("config/release-allowlist.json")
 MANIFEST_NAME = "RELEASE_MANIFEST.json"
 CHECKSUMS_NAME = "SHA256SUMS"
 GENERATED_NAMES = frozenset({MANIFEST_NAME, CHECKSUMS_NAME})
-PUBLIC_MARKETPLACE_PATH = ".claude-plugin/marketplace.json"
-PUBLIC_MARKETPLACE_TEMPLATE = "config/public-marketplace.json"
 
 # ZIP dates cannot represent earlier or later instants.  Requiring rather than
 # silently clamping avoids two different SOURCE_DATE_EPOCH values producing
@@ -1568,9 +1567,7 @@ def _parse_policy(
     return frozenset(parsed_approvals), parsed_binaries, parsed_overlays, errors
 
 
-def _validate_manifest(
-    manifest_bytes: bytes, payload: Mapping[str, bytes]
-) -> tuple[
+def _validate_manifest(manifest_bytes: bytes, payload: Mapping[str, bytes]) -> tuple[
     dict[str, Any] | None,
     frozenset[str],
     dict[str, str],
@@ -1841,131 +1838,38 @@ def _validate_checksums(
 def _validate_public_marketplace(
     payload: Mapping[str, bytes], overlays: Mapping[str, str]
 ) -> list[Error]:
-    """Prove that an injected marketplace root contains only the audited distribution."""
+    """Audit both catalogs without extracting or trusting package code."""
 
-    if (
-        PUBLIC_MARKETPLACE_PATH not in payload
-        and PUBLIC_MARKETPLACE_PATH not in overlays
-    ):
+    if not any(path in payload or path in overlays for path in CATALOGS):
         return []
-    errors: list[Error] = []
-    if overlays.get(PUBLIC_MARKETPLACE_PATH) != PUBLIC_MARKETPLACE_TEMPLATE:
-        errors.append(
-            _error(
-                "unsafe_marketplace_source",
-                PUBLIC_MARKETPLACE_PATH,
-                "public marketplace manifest must be injected from its reviewed template",
-            )
-        )
-    template = payload.get(PUBLIC_MARKETPLACE_TEMPLATE)
-    marketplace_bytes = payload.get(PUBLIC_MARKETPLACE_PATH)
-    plugin_bytes = payload.get(".claude-plugin/plugin.json")
-    if template is None or marketplace_bytes is None or plugin_bytes is None:
-        errors.append(
-            _error(
-                "incomplete_marketplace",
-                PUBLIC_MARKETPLACE_PATH,
-                "marketplace, template, and plugin manifest must all be present",
-            )
-        )
-        return _sorted_errors(errors)
-    if marketplace_bytes != template:
-        errors.append(
-            _error(
-                "marketplace_template_drift",
-                PUBLIC_MARKETPLACE_PATH,
-                "marketplace bytes differ from the reviewed Git-bound template",
-            )
-        )
-    try:
-        marketplace = _strict_json_loads(marketplace_bytes.decode("utf-8"))
-        plugin = _strict_json_loads(plugin_bytes.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
-        errors.append(
-            _error(
-                "invalid_marketplace",
-                PUBLIC_MARKETPLACE_PATH,
-                "marketplace metadata is invalid",
-            )
-        )
-        return _sorted_errors(errors)
-    entries = marketplace.get("plugins") if isinstance(marketplace, dict) else None
-    entry = entries[0] if isinstance(entries, list) and len(entries) == 1 else None
-    plugin_name = plugin.get("name") if isinstance(plugin, dict) else None
-    plugin_version = plugin.get("version") if isinstance(plugin, dict) else None
-    marketplace_version = (
-        marketplace.get("version") if isinstance(marketplace, dict) else None
-    )
-    if not isinstance(entry, dict):
-        errors.append(
-            _error(
-                "invalid_marketplace",
-                PUBLIC_MARKETPLACE_PATH,
-                "exactly one plugin is required",
-            )
-        )
-    else:
-        if entry.get("source") != "./":
+    errors = validate_metadata(payload, installed=True)
+    for destination, template in CATALOGS.items():
+        if overlays.get(destination) != template:
             errors.append(
                 _error(
                     "unsafe_marketplace_source",
-                    PUBLIC_MARKETPLACE_PATH,
-                    "artifact marketplace plugin source must be the audited artifact root",
+                    destination,
+                    "catalog must be injected from its reviewed Git-bound template",
                 )
             )
-        if entry.get("name") != plugin_name:
-            errors.append(
-                _error(
-                    "marketplace_name_drift",
-                    PUBLIC_MARKETPLACE_PATH,
-                    "plugin names differ",
-                )
-            )
-        if "version" in entry:
-            errors.append(
-                _error(
-                    "duplicate_version_authority",
-                    PUBLIC_MARKETPLACE_PATH,
-                    "plugin.json must be the sole plugin-version authority",
-                )
-            )
-    if (
-        not isinstance(plugin_name, str)
-        or not plugin_name
-        or not isinstance(plugin_version, str)
-        or not plugin_version
-        or marketplace_version != plugin_version
+    if any(
+        name.split("/", 1)[0] in {"wiki", ".raw", ".vault-meta"} for name in payload
     ):
         errors.append(
             _error(
-                "version_drift",
-                PUBLIC_MARKETPLACE_PATH,
-                "marketplace and plugin metadata differ",
-            )
-        )
-    live_paths = sorted(
-        name
-        for name in payload
-        if name == "wiki"
-        or name.startswith("wiki/")
-        or name == ".raw"
-        or name.startswith(".raw/")
-        or name == ".vault-meta"
-        or name.startswith(".vault-meta/")
-    )
-    if live_paths:
-        errors.append(
-            _error(
                 "unsafe_marketplace_root",
-                PUBLIC_MARKETPLACE_PATH,
+                ".",
                 "artifact marketplace contains contributor/live-vault state",
             )
         )
     required = {
+        "config/plugin.json",
+        ".codex-plugin/plugin.json",
         ".claude-plugin/plugin.json",
         "claude_obsidian/__init__.py",
         "config/capabilities.json",
         "hooks/hooks.json",
+        "hooks/codex.json",
         "scripts/claude-obsidian.py",
         "skills/wiki/SKILL.md",
         "templates/vault/.gitignore",

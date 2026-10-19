@@ -1,7 +1,7 @@
-# Contributing to claude-obsidian
+# Contributing to llm-wiki
 
-Contributions are welcome in the public canonical repository:
-https://github.com/AgriciDaniel/claude-obsidian.
+Contributions to this fork are welcome at:
+https://github.com/tphduy/llm-wiki.
 
 For a substantial change, open an issue that describes the user problem,
 proposed behavior, compatibility impact, privacy/egress implications, and a

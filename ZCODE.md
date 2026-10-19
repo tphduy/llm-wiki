@@ -1,4 +1,4 @@
-# claude-obsidian: ZCode instructions
+# llm-wiki: ZCode instructions
 
 Read `AGENTS.md` as the canonical host-neutral contract. Skills live in
 `skills/<name>/SKILL.md` and the portable core lives in `claude_obsidian/`.
@@ -27,4 +27,4 @@ Parallel workers draft only. Do not use direct shared writes, automatic commits,
 or the deprecated per-file lock helper. Remote egress and destructive actions
 need explicit user consent.
 
-Public canonical: https://github.com/AgriciDaniel/claude-obsidian
+Fork repository: https://github.com/tphduy/llm-wiki

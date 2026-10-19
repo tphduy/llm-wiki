@@ -2,6 +2,9 @@
 
 PYTHON ?= python3
 export PYTHONDONTWRITEBYTECODE := 1
+# Hermetic verification must select its own temporary vaults. Setup targets
+# retain the caller’s explicit configuration.
+TEST_ENV = env -u CLAUDE_OBSIDIAN_VAULT -u CLAUDE_OBSIDIAN_SESSION_CONTEXT -u CLAUDE_OBSIDIAN_SESSION_CONTEXT_VAULT
 
 .PHONY: help test test-python test-shell test-contracts test-package validate \
 	setup-dragonscale setup-retrieve setup-mode clean-test-state
@@ -22,21 +25,21 @@ test: test-python test-shell test-contracts test-package
 test-python:
 	@set -eu; for test_file in tests/test_*.py; do \
 		echo "=== $$test_file ==="; \
-		$(PYTHON) "$$test_file"; \
+		$(TEST_ENV) $(PYTHON) "$$test_file"; \
 	done
 
 test-shell:
 	@set -eu; for test_file in tests/test_*.sh; do \
 		echo "=== $$test_file ==="; \
-		bash "$$test_file"; \
+		$(TEST_ENV) bash "$$test_file"; \
 	done
 
 test-contracts:
-	@$(PYTHON) scripts/claude-obsidian.py contracts --check-only
-	@$(PYTHON) scripts/claude-obsidian.py contracts --verify
+	@$(TEST_ENV) $(PYTHON) scripts/claude-obsidian.py contracts --check-only
+	@$(TEST_ENV) $(PYTHON) scripts/claude-obsidian.py contracts --verify
 
 test-package:
-	@$(PYTHON) scripts/claude-obsidian.py package validate
+	@$(TEST_ENV) $(PYTHON) scripts/claude-obsidian.py package validate
 
 validate: test-contracts test-package
 

@@ -9,7 +9,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
@@ -53,6 +52,44 @@ class PackageValidationTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+        # Both hosts share canonical identity while keeping separate hook adapters.
+        plugin = json.loads((ROOT / "config/plugin.json").read_text())
+        plugin.update(name="sample", version="1.0.0")
+        (root / "config/plugin.json").write_text(json.dumps(plugin), encoding="utf-8")
+        (root / ".codex-plugin").mkdir()
+        compat = {
+            key: value
+            for key, value in plugin.items()
+            if key not in {"$schema", "extensions"}
+        }
+        compat.update(plugin["extensions"]["com.openai"])
+        compat["skills"] = "./skills/"
+        (root / ".codex-plugin/plugin.json").write_text(
+            json.dumps(compat), encoding="utf-8"
+        )
+        claude = {
+            key: value
+            for key, value in plugin.items()
+            if key not in {"$schema", "extensions"}
+        }
+        (root / ".claude-plugin/plugin.json").write_text(
+            json.dumps(claude), encoding="utf-8"
+        )
+        marketplace = json.loads((root / "config/public-marketplace.json").read_text())
+        marketplace["name"] = "sample-marketplace"
+        (root / "config/public-marketplace.json").write_text(
+            json.dumps(marketplace), encoding="utf-8"
+        )
+        codex = json.loads((ROOT / "config/public-codex-marketplace.json").read_text())
+        codex["name"] = "sample-marketplace"
+        codex["plugins"][0]["name"] = "sample"
+        (root / "config/public-codex-marketplace.json").write_text(
+            json.dumps(codex), encoding="utf-8"
+        )
+        (root / "hooks/codex.json").write_bytes(
+            (ROOT / "hooks/codex.json").read_bytes()
+        )
+
     def test_minimal_portable_package_is_valid(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -64,6 +101,9 @@ class PackageValidationTests(unittest.TestCase):
 
     def test_duplicate_package_authority_keys_are_rejected(self) -> None:
         cases = {
+            "config/plugin.json": '{"name":"sample","name":"sample"}',
+            "config/public-codex-marketplace.json": '{"plugins":[],"plugins":[]}',
+            "hooks/codex.json": '{"hooks":{},"hooks":{}}',
             "hooks/hooks.json": '{"hooks":{},"hooks":{}}',
             ".claude-plugin/plugin.json": (
                 '{"name":"sample","version":"1.0.0","version":"1.0.0"}'
@@ -271,6 +311,109 @@ class PackageValidationTests(unittest.TestCase):
             codes = {item["code"] for item in validate_package(root)["findings"]}
             self.assertIn("unsafe_marketplace_root", codes)
 
+    def test_codex_catalog_drift_policy_and_contributor_state_are_rejected(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(
+                root, frontmatter="---\nname: sample\ndescription: Sample.\n---"
+            )
+            catalog = root / ".agents/plugins/marketplace.json"
+            catalog.parent.mkdir(parents=True)
+            catalog.write_bytes(
+                (root / "config/public-codex-marketplace.json").read_bytes()
+            )
+            self.assertTrue(validate_package(root)["ok"])
+            catalog.write_bytes(catalog.read_bytes() + b"\n")
+            codes = {item["code"] for item in validate_package(root)["findings"]}
+            self.assertIn("marketplace_template_drift", codes)
+            catalog.write_bytes(
+                (root / "config/public-codex-marketplace.json").read_bytes()
+            )
+            (root / "wiki").mkdir()
+            codes = {item["code"] for item in validate_package(root)["findings"]}
+            self.assertIn("unsafe_marketplace_root", codes)
+            template = root / "config/public-codex-marketplace.json"
+            data = json.loads(template.read_text())
+            data["plugins"][0]["source"]["path"] = "../private-vault"
+            data["plugins"][0]["policy"]["installation"] = "INSTALLED_BY_DEFAULT"
+            template.write_text(json.dumps(data))
+            codes = {item["code"] for item in validate_package(root)["findings"]}
+            self.assertIn("unsafe_marketplace_source", codes)
+            self.assertIn("invalid_marketplace_policy", codes)
+
+    def test_portable_identity_and_explicit_codex_hook_selection_are_required(
+        self,
+    ) -> None:
+        for field, value, code in (
+            ("$schema", "wrong", "invalid_plugin_schema"),
+            ("name", "different", "plugin_metadata_drift"),
+            ("version", "2.0.0", "version_drift"),
+            ("extensions", {}, "invalid_codex_hooks"),
+            (
+                "extensions",
+                {"com.openai": {"hooks": "../outside.json"}},
+                "invalid_codex_hooks",
+            ),
+        ):
+            with self.subTest(field=field), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                self.fixture(
+                    root, frontmatter="---\nname: sample\ndescription: Sample.\n---"
+                )
+                manifest = root / "config/plugin.json"
+                data = json.loads(manifest.read_text())
+                data[field] = value
+                manifest.write_text(json.dumps(data))
+                codes = {item["code"] for item in validate_package(root)["findings"]}
+                self.assertIn(code, codes)
+
+    def test_codex_metadata_ancestor_symlinks_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "product"
+            root.mkdir()
+            self.fixture(
+                root, frontmatter="---\nname: sample\ndescription: Sample.\n---"
+            )
+            external = Path(directory) / "elsewhere"
+            external.mkdir()
+            try:
+                (root / ".agents").symlink_to(external, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("platform does not support directory symlinks")
+            codes = {item["code"] for item in validate_package(root)["findings"]}
+            self.assertIn("unsafe_marketplace_manifest", codes)
+
+    def test_portable_root_cannot_shadow_the_working_codex_hook_adapter(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(
+                root, frontmatter="---\nname: sample\ndescription: Sample.\n---"
+            )
+            (root / "plugin.json").write_bytes(
+                (root / "config/plugin.json").read_bytes()
+            )
+            codes = {item["code"] for item in validate_package(root)["findings"]}
+            self.assertIn("shadowed_codex_adapter", codes)
+
+    def test_codex_adapter_drift_and_missing_runtime_are_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(
+                root, frontmatter="---\nname: sample\ndescription: Sample.\n---"
+            )
+            adapter = root / ".codex-plugin/plugin.json"
+            value = json.loads(adapter.read_text())
+            value["hooks"] = "../outside.json"
+            value["skills"] = "../outside"
+            adapter.write_text(json.dumps(value))
+            (root / "hooks/codex.json").unlink()
+            codes = {item["code"] for item in validate_package(root)["findings"]}
+            self.assertIn("plugin_metadata_drift", codes)
+            self.assertIn("invalid_codex_skills", codes)
+            self.assertIn("missing_file", codes)
+
     def test_plugin_json_is_the_only_plugin_version_authority(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -337,8 +480,7 @@ class PackageValidationTests(unittest.TestCase):
             )
             skill = root / "skills/sample/SKILL.md"
             skill.write_text(
-                skill.read_text(encoding="utf-8")
-                + "\nRead [the transaction contract]"
+                skill.read_text(encoding="utf-8") + "\nRead [the transaction contract]"
                 "(../wiki/references/operation-transactions.md).\n",
                 encoding="utf-8",
             )

@@ -10,7 +10,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MODE = ROOT / "scripts/setup-mode.sh"
 DRAGONSCALE = ROOT / "scripts/setup-dragonscale.sh"
@@ -201,6 +200,44 @@ class SetupWrapperTests(unittest.TestCase):
                 (vault / ".vault-meta/mode.json").read_text(encoding="utf-8")
             )
             self.assertEqual("para", mode["mode"])
+
+
+class MakeEnvironmentTests(unittest.TestCase):
+    def invoke(self, target: str) -> list[str]:
+        with tempfile.TemporaryDirectory() as directory:
+            fake = Path(directory) / "python3"
+            fake.write_text(
+                '#!/bin/sh\nprintf \'%s\n\' "${CLAUDE_OBSIDIAN_VAULT-unset}" "${CLAUDE_OBSIDIAN_SESSION_CONTEXT-unset}" "${CLAUDE_OBSIDIAN_SESSION_CONTEXT_VAULT-unset}"\n'
+            )
+            fake.chmod(0o755)
+            environment = dict(os.environ)
+            environment.update(
+                {
+                    "CLAUDE_OBSIDIAN_VAULT": "/fixture/selected-vault",
+                    "CLAUDE_OBSIDIAN_SESSION_CONTEXT": "1",
+                    "CLAUDE_OBSIDIAN_SESSION_CONTEXT_VAULT": "/fixture/consented-vault",
+                    "PATH": str(fake.parent) + os.pathsep + environment.get("PATH", ""),
+                }
+            )
+            result = subprocess.run(
+                ["make", "--no-print-directory", "-s", target, "PYTHON=" + str(fake)],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=True,
+                timeout=15,
+            )
+            return result.stdout.splitlines()
+
+    def test_package_verification_cannot_inherit_user_vault_or_consent(self) -> None:
+        self.assertEqual(["unset", "unset", "unset"], self.invoke("test-package"))
+
+    def test_setup_target_preserves_explicit_user_configuration(self) -> None:
+        self.assertEqual(
+            ["/fixture/selected-vault", "1", "/fixture/consented-vault"],
+            self.invoke("setup-mode"),
+        )
 
 
 if __name__ == "__main__":

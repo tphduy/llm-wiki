@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "product": {
-    "id": "claude-obsidian",
-    "name": "claude-obsidian",
+    "id": "llm-wiki",
+    "name": "llm-wiki",
     "promise": "Build and maintain a local-first, source-cited, compounding Obsidian knowledge base through portable Agent Skills.",
     "non_promises": [
       "Automatic transcript capture",
@@ -33,9 +33,10 @@
     },
     {
       "id": "codex-cli",
-      "support_level": "compatible",
+      "support_level": "native",
       "implementation_paths": [
-        "AGENTS.md",
+        ".codex-plugin/plugin.json",
+        "hooks/codex.json",
         "skills"
       ]
     },
@@ -68,6 +69,15 @@
       "support_level": "compatible",
       "implementation_paths": [
         "scripts/setup-multi-agent.sh",
+        "skills"
+      ]
+    },
+    {
+      "id": "codex-desktop",
+      "support_level": "native",
+      "implementation_paths": [
+        ".codex-plugin/plugin.json",
+        "hooks/codex.json",
         "skills"
       ]
     }
@@ -137,6 +147,26 @@
       "implementation_paths": [
         "scripts/setup-multi-agent.sh",
         "skills"
+      ]
+    },
+    {
+      "id": "codex-cli-marketplace",
+      "host": "codex-cli",
+      "implementation_paths": [
+        ".codex-plugin/plugin.json",
+        "config/public-codex-marketplace.json",
+        "claude_obsidian/release.py",
+        "config/release-allowlist.json"
+      ]
+    },
+    {
+      "id": "codex-desktop-marketplace",
+      "host": "codex-desktop",
+      "implementation_paths": [
+        ".codex-plugin/plugin.json",
+        "config/public-codex-marketplace.json",
+        "claude_obsidian/release.py",
+        "config/release-allowlist.json"
       ]
     }
   ],

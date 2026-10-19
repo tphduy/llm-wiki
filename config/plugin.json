@@ -1,0 +1,49 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "llm-wiki",
+  "version": "2.3.0",
+  "description": "Local-first Agent Skills package for source-cited Obsidian knowledge bases, with Codex and Claude Code adapters. Includes explicit vault setup, recoverable transactions, provenance, lint, and retrieval. User vaults stay outside the plugin cache; network and destructive actions require explicit consent.",
+  "author": {
+    "name": "tphduy",
+    "url": "https://github.com/tphduy"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/tphduy/llm-wiki",
+  "repository": "https://github.com/tphduy/llm-wiki",
+  "keywords": [
+    "obsidian",
+    "knowledge-base",
+    "wiki",
+    "memory",
+    "notetaker",
+    "second-brain",
+    "vault",
+    "markdown",
+    "cross-project",
+    "llm-wiki",
+    "karpathy",
+    "pkm",
+    "canvas",
+    "visual"
+  ],
+  "extensions": {
+    "com.openai": {
+      "hooks": "./hooks/codex.json",
+      "interface": {
+        "displayName": "LLM Wiki",
+        "shortDescription": "Build and query a source-cited Obsidian knowledge base.",
+        "developerName": "tphduy",
+        "category": "Productivity",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://github.com/tphduy/llm-wiki",
+        "defaultPrompt": [
+          "Use the wiki skill in llm-wiki to set up a separate knowledge vault.",
+          "Use the wiki-query skill in llm-wiki to answer from my vault."
+        ]
+      }
+    }
+  }
+}

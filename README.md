@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/cover.png" alt="claude-obsidian cover featuring an astronaut, the Obsidian crystal, and a connected knowledge graph" width="100%">
+  <img src="assets/cover.png" alt="llm-wiki cover featuring an astronaut, the Obsidian crystal, and a connected knowledge graph" width="100%">
 </p>
 
-<h1 align="center">claude-obsidian</h1>
+<h1 align="center">llm-wiki</h1>
 
 <p align="center">
   <strong>Build an Obsidian knowledge base that becomes more useful every time you use it.</strong><br>
@@ -13,16 +13,8 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2563eb.svg" alt="MIT license"></a>
   <a href="https://agentskills.io"><img src="https://img.shields.io/badge/Agent%20Skills-compatible-2563eb" alt="Agent Skills compatible"></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-7c3aed" alt="Claude Code plugin"></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v2.2.0-d97745" alt="Release v2.2.0"></a>
-</p>
-
-<p align="center">
-  <a href="https://www.star-history.com/agricidaniel/claude-obsidian">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/badge?repo=AgriciDaniel/claude-obsidian&type=trending&theme=dark">
-      <img src="https://api.star-history.com/badge?repo=AgriciDaniel/claude-obsidian&type=trending" alt="GitHub Trending Repository of the Day">
-    </picture>
-  </a>
+  <a href="https://developers.openai.com/plugins/build/plugins"><img src="https://img.shields.io/badge/Codex-plugin-2563eb" alt="Codex plugin"></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/release-v2.3.0-d97745" alt="Release v2.3.0"></a>
 </p>
 
 <p align="center">
@@ -33,7 +25,7 @@
   <a href="docs/windows-wsl.md">Windows &amp; WSL</a>
 </p>
 
-claude-obsidian is a local-first knowledge system for Claude Code and compatible
+llm-wiki is a local-first knowledge system for Codex, Claude Code, and compatible
 [Agent Skills](https://agentskills.io) hosts. It turns source material into
 linked, source-cited Obsidian pages; answers from the evidence already in the
 vault; and provides explicit workflows for research, retrieval, maintenance,
@@ -45,11 +37,11 @@ to a model.
 
 ## From source to living knowledge
 
-Most AI note workflows stop after saving text. claude-obsidian is organized
+Most AI note workflows stop after saving text. llm-wiki is organized
 around a repeatable loop: retain the source, ground the claims, connect the
 knowledge, then put it back to work.
 
-![The claude-obsidian compounding knowledge loop](assets/diagrams/knowledge-loop.svg)
+![The llm-wiki compounding knowledge loop](assets/diagrams/knowledge-loop.svg)
 
 - **Capture with context.** Bring local sources through a visible inbox and
   preserve immutable, content-addressed copies before synthesis.
@@ -66,8 +58,8 @@ The output is meant to remain useful with or without an agent: plain Markdown
 for portability, Obsidian for navigation and visual exploration.
 
 <p align="center">
-  <img src="assets/screenshots/graph-view.png" alt="Example claude-obsidian vault in Obsidian Graph view" width="49%">
-  <img src="assets/screenshots/wiki-map-view.png" alt="Example claude-obsidian knowledge map in Obsidian Canvas" width="49%">
+  <img src="assets/screenshots/graph-view.png" alt="Example llm-wiki vault in Obsidian Graph view" width="49%">
+  <img src="assets/screenshots/wiki-map-view.png" alt="Example llm-wiki knowledge map in Obsidian Canvas" width="49%">
 </p>
 
 <p align="center">
@@ -98,8 +90,8 @@ mutating setup command previews its exact operation before it can apply.
 ### 1. Get the product
 
 ```bash
-git clone https://github.com/AgriciDaniel/claude-obsidian.git
-cd claude-obsidian
+git clone https://github.com/tphduy/llm-wiki.git
+cd llm-wiki
 ```
 
 The checkout contains the product. It is not your knowledge vault.
@@ -133,21 +125,33 @@ with the local plugin:
 
 ```bash
 cd "$HOME/Documents/MyKnowledgeVault"
-claude --plugin-dir /absolute/path/to/claude-obsidian
+claude --plugin-dir /absolute/path/to/llm-wiki
 ```
 
 Start with:
 
 ```text
-/claude-obsidian:wiki
+/llm-wiki:wiki
 ```
 
 Then place a source in `inbox/` and invoke
-`/claude-obsidian:wiki-ingest`. Save an answer explicitly with
-`/claude-obsidian:save`; ask the vault with `/claude-obsidian:wiki-query`.
+`/llm-wiki:wiki-ingest`. Save an answer explicitly with
+`/llm-wiki:save`; ask the vault with `/llm-wiki:wiki-query`.
 
-For Codex, OpenCode, Gemini, or ZCode, preview and then apply the portable
-skill links from the product checkout:
+For Codex, install the plugin from this fork’s clean marketplace:
+
+```bash
+codex plugin marketplace add tphduy/llm-wiki
+codex plugin add llm-wiki@tphduy-llm-wiki
+codex plugin list
+```
+
+Open Codex from your separate vault and select its packaged wiki skill. Review
+and trust the bundled hooks before using them; recent-context injection stays
+disabled until you explicitly opt in. See the [installation guide](docs/install-guide.md#codex-marketplace).
+
+For standalone skills in Codex, OpenCode, Gemini, or ZCode, preview and then
+apply the portable skill links from the product checkout:
 
 ```bash
 bash scripts/setup-multi-agent.sh --host codex
@@ -193,14 +197,14 @@ the same evidence, vault-selection, and mutation rules.
 | `obsidian-bases` | Native `.base` tables, cards, filters, formulas, and summaries |
 | `think` | A structured observe, listen, connect, create, and grow review loop |
 
-Claude Code exposes namespaced invocations such as
-`/claude-obsidian:wiki-lint`; other hosts use their native Agent Skills
-invocation. Trigger phrases and exact contracts live in each
+Claude Code exposes namespaced invocations such as `/llm-wiki:wiki-lint`.
+Codex lists names such as `llm-wiki:wiki-lint` in its skill picker; other hosts
+use their native Agent Skills invocation. Trigger phrases and exact contracts live in each
 `skills/<name>/SKILL.md`.
 
 ## Trust is part of the architecture
 
-![The claude-obsidian product and vault trust boundary](assets/diagrams/product-vault-boundary.svg)
+![The llm-wiki product and vault trust boundary](assets/diagrams/product-vault-boundary.svg)
 
 The product never treats a source checkout, plugin cache, or contributor state
 as the default vault. A vault is selected explicitly, through
@@ -313,10 +317,10 @@ README assets. They reject contributor hot/log state, root raw sources, runtime
 metadata, private paths, recognizable personal email addresses, secrets,
 symlinks, unsafe archive entries, and unreviewed binaries.
 
-The private development checkout deliberately has no marketplace catalog. The
-release builder injects the reviewed catalog only into the distribution-clean
-artifact. A public default branch must be populated from that audited tree,
-never by pushing contributor-vault state.
+Clean public checkouts retain reviewed Claude and Codex catalogs. Contributor
+checkouts containing vault state must omit both catalogs. The release builder
+injects both from reviewed templates and rejects catalog drift; public branches
+contain only distribution-clean product files.
 
 </details>
 
@@ -386,8 +390,8 @@ combinations and verifies a byte-reproducible release build.
 Build and audit locally without publishing:
 
 ```bash
-python3 scripts/claude-obsidian.py release build --output dist/claude-obsidian.zip
-python3 scripts/claude-obsidian.py release audit dist/claude-obsidian.zip
+python3 scripts/claude-obsidian.py release build --output dist/llm-wiki.zip
+python3 scripts/claude-obsidian.py release audit dist/llm-wiki.zip
 ```
 
 No command pushes, tags, publishes, opens issues, or creates releases

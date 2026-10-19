@@ -1,11 +1,28 @@
 # Changelog
 
-Notable changes to claude-obsidian are recorded here using
+Notable changes to llm-wiki are recorded here using
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) categories and
 [Semantic Versioning](https://semver.org/). Git history retains the detailed
 implementation record for older releases.
 
 ## [Unreleased]
+
+## [2.3.0] - 2026-10-19
+
+### Added
+
+- A Codex plugin manifest and audited Codex marketplace for all 15 skills.
+- Codex SessionStart and Stop adapters with explicit context consent, bounded
+  output, and read-only recovery warnings.
+- Shared cross-host identity checks and dual-catalog artifact safety tests.
+
+### Changed
+
+- This fork is named llm-wiki on Codex and Claude Code and is distributed from
+  `tphduy/llm-wiki`. Existing CLI, environment, vault, and transaction identifiers
+  remain compatible with claude-obsidian.
+- Clean public branches retain reviewed catalogs for both hosts; contributor
+  vault checkouts omit both.
 
 ## [2.2.0] - 2026-09-10
 

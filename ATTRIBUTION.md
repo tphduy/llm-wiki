@@ -1,6 +1,8 @@
 # Attributions
 
-claude-obsidian is an original work. The following third-party patterns, tools, and creators informed its design.
+llm-wiki is a fork of claude-obsidian by AgriciDaniel / AI Marketing Hub.
+The fork adds Codex packaging and host adapters while preserving upstream
+MIT licensing and attribution. The following third-party patterns, tools, and creators informed its design.
 
 ---
 

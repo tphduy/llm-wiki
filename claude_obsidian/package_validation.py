@@ -14,8 +14,9 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .hosts import PluginHost
 from .json_utils import strict_json_loads
-
+from .plugin_metadata import CATALOGS, METADATA_FILES, validate_metadata
 
 ALLOWED_HOOK_EVENTS = {
     "SessionStart",
@@ -31,8 +32,6 @@ SESSION_START_HOOK_TYPES = {"command", "mcp_tool"}
 SESSION_START_MATCHERS = {"startup", "resume", "clear", "compact"}
 PORTABLE_SKILL_KEYS = ("name", "description")
 NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-MARKETPLACE_TEMPLATE = "config/public-marketplace.json"
-MARKETPLACE_PATH = ".claude-plugin/marketplace.json"
 YAML_PLAIN_FORBIDDEN_START = frozenset("-?:,[]{}#&*!|>'\"%@`")
 
 
@@ -42,11 +41,15 @@ def _finding(code: str, path: str, message: str) -> dict[str, str]:
 
 def _load_json(root: Path, relative: str) -> tuple[Any | None, list[dict[str, str]]]:
     path = root / relative
+    if _has_symlink_ancestor(root, path):
+        return None, [
+            _finding("unsafe_package_path", relative, "metadata cannot follow symlinks")
+        ]
     try:
         return strict_json_loads(path.read_text(encoding="utf-8")), []
     except FileNotFoundError:
         return None, [_finding("missing_file", relative, "required file is missing")]
-    except (json.JSONDecodeError, ValueError) as exc:
+    except (json.JSONDecodeError, ValueError, UnicodeError, RecursionError) as exc:
         detail = (
             f"line {exc.lineno}, column {exc.colno}: {exc.msg}"
             if isinstance(exc, json.JSONDecodeError)
@@ -59,6 +62,16 @@ def _load_json(root: Path, relative: str) -> tuple[Any | None, list[dict[str, st
                 detail,
             )
         ]
+    except OSError:
+        return None, [_finding("unreadable_file", relative, "metadata is unreadable")]
+
+
+def _has_symlink_ancestor(root: Path, path: Path) -> bool:
+    return path.is_symlink() or any(
+        parent.is_symlink()
+        for parent in path.parents
+        if parent != root and root in parent.parents
+    )
 
 
 def _frontmatter_scalar(
@@ -344,28 +357,29 @@ def _validate_no_legacy_bin_directory(root: Path) -> list[dict[str, str]]:
     return []
 
 
-def _validate_hooks(root: Path) -> list[dict[str, str]]:
-    document, errors = _load_json(root, "hooks/hooks.json")
+def _validate_hooks(
+    root: Path, *, host: PluginHost = PluginHost.CLAUDE
+) -> list[dict[str, str]]:
+    relative = host.hooks_path
+    document, errors = _load_json(root, relative)
     if errors:
         return errors
     if not isinstance(document, dict) or not isinstance(document.get("hooks"), dict):
-        return [
-            _finding("invalid_hooks", "hooks/hooks.json", "hooks must be an object")
-        ]
+        return [_finding("invalid_hooks", relative, "hooks must be an object")]
 
     findings: list[dict[str, str]] = []
     for event, groups in document["hooks"].items():
         if event not in ALLOWED_HOOK_EVENTS:
-            findings.append(_finding("unknown_hook_event", "hooks/hooks.json", event))
+            findings.append(_finding("unknown_hook_event", relative, event))
         if not isinstance(groups, list):
-            findings.append(_finding("invalid_hook_groups", "hooks/hooks.json", event))
+            findings.append(_finding("invalid_hook_groups", relative, event))
             continue
         for group_index, group in enumerate(groups):
             if not isinstance(group, dict) or not isinstance(group.get("hooks"), list):
                 findings.append(
                     _finding(
                         "invalid_hook_group",
-                        "hooks/hooks.json",
+                        relative,
                         f"{event}[{group_index}]",
                     )
                 )
@@ -373,15 +387,28 @@ def _validate_hooks(root: Path) -> list[dict[str, str]]:
             if event == "SessionStart" and "matcher" in group:
                 matcher = group.get("matcher")
                 matcher_parts = matcher.split("|") if isinstance(matcher, str) else []
+                allowed_matchers = SESSION_START_MATCHERS
+                match host:
+                    case PluginHost.CODEX:
+                        allowed_matchers = allowed_matchers | {"fork"}
+                        matcher_parts = (
+                            matcher.removeprefix("^(").removesuffix(")$").split("|")
+                            if isinstance(matcher, str)
+                            else []
+                        )
+                    case PluginHost.CLAUDE:
+                        pass
+                    case _:
+                        raise ValueError(f"Unsupported plugin host: {host!r}")
                 if (
                     not matcher_parts
-                    or any(part not in SESSION_START_MATCHERS for part in matcher_parts)
+                    or any(part not in allowed_matchers for part in matcher_parts)
                     or len(set(matcher_parts)) != len(matcher_parts)
                 ):
                     findings.append(
                         _finding(
                             "invalid_session_start_matcher",
-                            "hooks/hooks.json",
+                            relative,
                             f"{event}[{group_index}]",
                         )
                     )
@@ -391,9 +418,7 @@ def _validate_hooks(root: Path) -> list[dict[str, str]]:
                     not isinstance(hook, dict)
                     or hook.get("type") not in ALLOWED_HOOK_TYPES
                 ):
-                    findings.append(
-                        _finding("invalid_hook_type", "hooks/hooks.json", location)
-                    )
+                    findings.append(_finding("invalid_hook_type", relative, location))
                     continue
                 hook_type = hook["type"]
                 if (
@@ -403,147 +428,97 @@ def _validate_hooks(root: Path) -> list[dict[str, str]]:
                     findings.append(
                         _finding(
                             "unsupported_session_start_hook_type",
-                            "hooks/hooks.json",
+                            relative,
                             location,
                         )
                     )
                 if hook_type == "command":
                     if not isinstance(hook.get("command"), str) or not hook["command"]:
                         findings.append(
-                            _finding(
-                                "missing_hook_command", "hooks/hooks.json", location
-                            )
+                            _finding("missing_hook_command", relative, location)
                         )
+                    match host:
+                        case PluginHost.CODEX:
+                            if "args" in hook:
+                                findings.append(
+                                    _finding(
+                                        "invalid_hook_args",
+                                        relative,
+                                        "Codex uses a quoted command string",
+                                    )
+                                )
+                        case PluginHost.CLAUDE:
+                            pass
+                        case _:
+                            raise ValueError(f"Unsupported plugin host: {host!r}")
                     args = hook.get("args", [])
                     if "args" in hook and (
                         not isinstance(args, list)
                         or not all(isinstance(value, str) for value in args)
                     ):
                         findings.append(
-                            _finding("invalid_hook_args", "hooks/hooks.json", location)
+                            _finding("invalid_hook_args", relative, location)
                         )
                 elif hook_type == "http":
                     if not isinstance(hook.get("url"), str) or not hook["url"]:
                         findings.append(
-                            _finding("missing_hook_url", "hooks/hooks.json", location)
+                            _finding("missing_hook_url", relative, location)
                         )
                 elif hook_type == "mcp_tool":
                     if not isinstance(hook.get("server"), str) or not hook["server"]:
                         findings.append(
-                            _finding(
-                                "missing_hook_server", "hooks/hooks.json", location
-                            )
+                            _finding("missing_hook_server", relative, location)
                         )
                     if not isinstance(hook.get("tool"), str) or not hook["tool"]:
                         findings.append(
-                            _finding("missing_hook_tool", "hooks/hooks.json", location)
+                            _finding("missing_hook_tool", relative, location)
                         )
                     if "input" in hook and not isinstance(hook.get("input"), dict):
                         findings.append(
-                            _finding("invalid_hook_input", "hooks/hooks.json", location)
+                            _finding("invalid_hook_input", relative, location)
                         )
                 elif hook_type in {"prompt", "agent"}:
                     if not isinstance(hook.get("prompt"), str) or not hook["prompt"]:
                         findings.append(
-                            _finding(
-                                "missing_hook_prompt", "hooks/hooks.json", location
-                            )
+                            _finding("missing_hook_prompt", relative, location)
                         )
     return findings
 
 
 def _validate_versions(root: Path) -> list[dict[str, str]]:
-    plugin, errors = _load_json(root, ".claude-plugin/plugin.json")
-    marketplace, marketplace_errors = _load_json(root, MARKETPLACE_TEMPLATE)
-    errors.extend(marketplace_errors)
-    if errors:
-        return errors
+    payload: dict[str, bytes] = {}
     findings: list[dict[str, str]] = []
-    plugin_name = plugin.get("name") if isinstance(plugin, dict) else None
-    plugin_version = plugin.get("version") if isinstance(plugin, dict) else None
-    entries = marketplace.get("plugins") if isinstance(marketplace, dict) else None
-    entry = entries[0] if isinstance(entries, list) and len(entries) == 1 else None
-    marketplace_version = (
-        marketplace.get("version") if isinstance(marketplace, dict) else None
-    )
-    if not isinstance(plugin_name, str) or NAME_RE.fullmatch(plugin_name) is None:
-        findings.append(
-            _finding("invalid_plugin_name", ".claude-plugin/plugin.json", "name")
-        )
-    if not isinstance(plugin_version, str) or not plugin_version:
-        findings.append(
-            _finding("missing_version", ".claude-plugin/plugin.json", "version")
-        )
-    elif marketplace_version != plugin_version:
-        findings.append(
-            _finding(
-                "version_drift",
-                MARKETPLACE_TEMPLATE,
-                "plugin and public marketplace versions must match",
-            )
-        )
-    if not isinstance(entry, dict):
-        findings.append(
-            _finding(
-                "invalid_marketplace",
-                MARKETPLACE_TEMPLATE,
-                "exactly one plugin entry is required",
-            )
-        )
-    else:
-        if entry.get("name") != plugin_name:
+    for relative in (*METADATA_FILES, *CATALOGS, "hooks/codex.json", "plugin.json"):
+        path = root / relative
+        if _has_symlink_ancestor(root, path):
             findings.append(
                 _finding(
-                    "marketplace_name_drift",
-                    MARKETPLACE_TEMPLATE,
-                    "plugin names must match",
+                    "unsafe_marketplace_manifest",
+                    relative,
+                    "package metadata cannot follow symlinks",
                 )
             )
-        if entry.get("source") != "./":
+            continue
+        try:
+            payload[relative] = path.read_bytes()
+        except FileNotFoundError:
+            continue
+        except OSError:
             findings.append(
-                _finding(
-                    "unsafe_marketplace_source",
-                    MARKETPLACE_TEMPLATE,
-                    "the generated public marketplace must use its audited artifact root",
-                )
+                _finding("unreadable_file", relative, "metadata is unreadable")
             )
-        if "version" in entry:
-            findings.append(
-                _finding(
-                    "duplicate_version_authority",
-                    MARKETPLACE_TEMPLATE,
-                    "plugin.json is the sole plugin-version authority",
-                )
-            )
-
-    installed_manifest = root / MARKETPLACE_PATH
-    if installed_manifest.is_symlink():
-        findings.append(
-            _finding(
-                "unsafe_marketplace_manifest",
-                MARKETPLACE_PATH,
-                "distribution manifest cannot be a symlink",
-            )
-        )
-    elif installed_manifest.exists():
-        installed, installed_errors = _load_json(root, MARKETPLACE_PATH)
-        findings.extend(installed_errors)
-        if installed != marketplace:
-            findings.append(
-                _finding(
-                    "marketplace_template_drift",
-                    MARKETPLACE_PATH,
-                    "distribution manifest must exactly match the reviewed template",
-                )
-            )
-        live_roots = [
-            path for path in (".raw", ".vault-meta", "wiki") if (root / path).exists()
-        ]
-        if live_roots:
+    findings.extend(validate_metadata(payload))
+    live_roots = [
+        path
+        for path in (".raw", ".vault-meta", "wiki")
+        if (root / path).exists() or (root / path).is_symlink()
+    ]
+    for destination in CATALOGS:
+        if destination in payload and live_roots:
             findings.append(
                 _finding(
                     "unsafe_marketplace_root",
-                    MARKETPLACE_PATH,
+                    destination,
                     "marketplace root contains contributor/live-vault state: "
                     + ", ".join(live_roots),
                 )
@@ -562,6 +537,7 @@ def validate_package(root: Path) -> dict[str, Any]:
         *_validate_wiki_reference_link_anchors(root),
         *_validate_no_legacy_bin_directory(root),
         *_validate_hooks(root),
+        *_validate_hooks(root, host=PluginHost.CODEX),
         *_validate_versions(root),
     ]
     findings = sorted(

@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/scripts/claude-obsidian.py\" hook session-start --host codex",
+            "timeout": 5,
+            "additionalContextLimit": 0
+          }
+        ],
+        "matcher": "^(startup|resume|clear|compact|fork)$"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/scripts/claude-obsidian.py\" hook stop --host codex",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}
