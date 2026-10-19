@@ -30,6 +30,7 @@ from .contracts import evaluate_capabilities, validate_contracts
 from .extensions import dragonscale_bundle
 from .gates import evaluate_release_gates
 from .hook_adapter import emit_codex_hook, emit_session_start, emit_stop_status
+from .hosts import PluginHost
 from .ledgers import LedgerValidationError, migration_bundle, strict_json_loads
 from .lint_engine import lint_vault, render_markdown
 from .mode_config import validate_mode_folders
@@ -208,15 +209,23 @@ def command_transaction_inspect(args: argparse.Namespace) -> int:
 
 
 def command_hook_session_start(args: argparse.Namespace) -> int:
-    if args.host == "codex":
-        return emit_codex_hook("SessionStart", plugin_root=PLUGIN_ROOT)
-    return emit_session_start(plugin_root=PLUGIN_ROOT)
+    match args.host:
+        case PluginHost.CODEX:
+            return emit_codex_hook("SessionStart", plugin_root=PLUGIN_ROOT)
+        case PluginHost.CLAUDE:
+            return emit_session_start(plugin_root=PLUGIN_ROOT)
+        case _:
+            raise ValueError(f"Unsupported plugin host: {args.host!r}")
 
 
 def command_hook_stop(args: argparse.Namespace) -> int:
-    if args.host == "codex":
-        return emit_codex_hook("Stop", plugin_root=PLUGIN_ROOT)
-    return emit_stop_status(plugin_root=PLUGIN_ROOT)
+    match args.host:
+        case PluginHost.CODEX:
+            return emit_codex_hook("Stop", plugin_root=PLUGIN_ROOT)
+        case PluginHost.CLAUDE:
+            return emit_stop_status(plugin_root=PLUGIN_ROOT)
+        case _:
+            raise ValueError(f"Unsupported plugin host: {args.host!r}")
 
 
 def command_lint(args: argparse.Namespace) -> int:
@@ -979,7 +988,9 @@ def build_parser() -> argparse.ArgumentParser:
     stop = hook_commands.add_parser("stop")
     stop.set_defaults(handler=command_hook_stop)
     for adapter in (session_start, stop):
-        adapter.add_argument("--host", choices=("claude", "codex"), default="claude")
+        adapter.add_argument(
+            "--host", type=PluginHost, choices=tuple(PluginHost), default=PluginHost.CLAUDE
+        )
 
     lint = subcommands.add_parser(
         "lint", help="Deterministically inspect an Obsidian vault"

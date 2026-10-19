@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .hosts import PluginHost
 from .json_utils import strict_json_loads
 from .plugin_metadata import CATALOGS, METADATA_FILES, validate_metadata
 
@@ -356,8 +357,10 @@ def _validate_no_legacy_bin_directory(root: Path) -> list[dict[str, str]]:
     return []
 
 
-def _validate_hooks(root: Path, *, host: str = "claude") -> list[dict[str, str]]:
-    relative = "hooks/codex.json" if host == "codex" else "hooks/hooks.json"
+def _validate_hooks(
+    root: Path, *, host: PluginHost = PluginHost.CLAUDE
+) -> list[dict[str, str]]:
+    relative = host.hooks_path
     document, errors = _load_json(root, relative)
     if errors:
         return errors
@@ -385,13 +388,18 @@ def _validate_hooks(root: Path, *, host: str = "claude") -> list[dict[str, str]]
                 matcher = group.get("matcher")
                 matcher_parts = matcher.split("|") if isinstance(matcher, str) else []
                 allowed_matchers = SESSION_START_MATCHERS
-                if host == "codex":
-                    allowed_matchers = allowed_matchers | {"fork"}
-                    matcher_parts = (
-                        matcher.removeprefix("^(").removesuffix(")$").split("|")
-                        if isinstance(matcher, str)
-                        else []
-                    )
+                match host:
+                    case PluginHost.CODEX:
+                        allowed_matchers = allowed_matchers | {"fork"}
+                        matcher_parts = (
+                            matcher.removeprefix("^(").removesuffix(")$").split("|")
+                            if isinstance(matcher, str)
+                            else []
+                        )
+                    case PluginHost.CLAUDE:
+                        pass
+                    case _:
+                        raise ValueError(f"Unsupported plugin host: {host!r}")
                 if (
                     not matcher_parts
                     or any(part not in allowed_matchers for part in matcher_parts)
@@ -429,14 +437,20 @@ def _validate_hooks(root: Path, *, host: str = "claude") -> list[dict[str, str]]
                         findings.append(
                             _finding("missing_hook_command", relative, location)
                         )
-                    if host == "codex" and "args" in hook:
-                        findings.append(
-                            _finding(
-                                "invalid_hook_args",
-                                relative,
-                                "Codex uses a quoted command string",
-                            )
-                        )
+                    match host:
+                        case PluginHost.CODEX:
+                            if "args" in hook:
+                                findings.append(
+                                    _finding(
+                                        "invalid_hook_args",
+                                        relative,
+                                        "Codex uses a quoted command string",
+                                    )
+                                )
+                        case PluginHost.CLAUDE:
+                            pass
+                        case _:
+                            raise ValueError(f"Unsupported plugin host: {host!r}")
                     args = hook.get("args", [])
                     if "args" in hook and (
                         not isinstance(args, list)
@@ -523,7 +537,7 @@ def validate_package(root: Path) -> dict[str, Any]:
         *_validate_wiki_reference_link_anchors(root),
         *_validate_no_legacy_bin_directory(root),
         *_validate_hooks(root),
-        *_validate_hooks(root, host="codex"),
+        *_validate_hooks(root, host=PluginHost.CODEX),
         *_validate_versions(root),
     ]
     findings = sorted(

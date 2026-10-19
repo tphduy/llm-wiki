@@ -18,12 +18,32 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from claude_obsidian.cli import build_parser
+from claude_obsidian.hosts import PluginHost
 from claude_obsidian.hook_adapter import (
     CLOSE_TAG,
     MAX_CONTEXT_BYTES,
     MAX_HOOK_INPUT_BYTES,
     emit_codex_hook,
 )
+
+
+class PluginHostTests(unittest.TestCase):
+    def test_cli_converts_hosts_to_enum_and_preserves_claude_default(self) -> None:
+        parser = build_parser()
+        for event in ("session-start", "stop"):
+            with self.subTest(event=event):
+                self.assertIs(parser.parse_args(["hook", event]).host, PluginHost.CLAUDE)
+            for host in PluginHost:
+                with self.subTest(event=event, host=host):
+                    args = parser.parse_args(["hook", event, "--host", host.value])
+                    self.assertIs(args.host, host)
+
+    def test_cli_rejects_unknown_hosts(self) -> None:
+        with mock.patch("sys.stderr", new_callable=io.StringIO):
+            with self.assertRaises(SystemExit) as error:
+                build_parser().parse_args(["hook", "stop", "--host", "unknown"])
+        self.assertEqual(error.exception.code, 2)
 
 
 def fingerprint(root: Path) -> dict[str, str]:
